@@ -1,5 +1,11 @@
 import * as esbuild from "esbuild-wasm";
 import axios from "axios";
+import localforage from "localforage";
+
+const fileCache = localforage.createInstance({
+    name: "filecache",
+});
+
 export const unpkgPathPlugin = () => {
     return {
         name: "unpkg-path-plugin",
@@ -36,12 +42,23 @@ export const unpkgPathPlugin = () => {
             `,
                     };
                 }
+
+                const casheResult =
+                    await fileCache.getItem<esbuild.OnLoadResult>(args.path);
+                if (casheResult) {
+                    return casheResult;
+                }
+
                 const { data, request } = await axios.get(args.path);
-                return {
+
+                const result: esbuild.OnLoadResult = {
                     loader: "jsx",
                     contents: data,
                     resolveDir: new URL("./", request.responseURL).pathname,
                 };
+                await fileCache.setItem(args.path, result);
+
+                return result;
             });
         },
     };
